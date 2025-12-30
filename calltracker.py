@@ -2,10 +2,16 @@ import tkinter as tk
 from tkinter import ttk
 import json
 import os
+import pyautogui
 
 SAVE_FILE = "call_tracker.json"
 PAY_PER_CALL = 3.67
 MINUTES_PER_CALL = 10
+IMAGE_FILE = "recording.png"
+CHECK_DELAY = 2000
+
+recording_active = False
+flash_active = False
 
 def load_data():
     if os.path.exists(SAVE_FILE):
@@ -40,9 +46,27 @@ def update_display():
 
     save_data()
 
-def increment():
+def flash_labels():
+    global flash_active
+    flash_active = True
+
+    money_label.config(foreground="green")
+    time_label.config(foreground="green")
+
+    root.after(600, reset_flash)
+
+def reset_flash():
+    global flash_active
+    money_label.config(foreground="black")
+    time_label.config(foreground="black")
+    flash_active = False
+
+def increment(auto=False):
     calls.set(calls.get() + 1)
     update_display()
+
+    if auto:
+        flash_labels()
 
 def decrement():
     if calls.get() > 0:
@@ -58,16 +82,38 @@ def manual_update(event=None):
         pass
     update_display()
 
+def check_recording():
+    global recording_active
+
+    if auto_var.get():
+        try:
+            found = pyautogui.locateOnScreen(
+                IMAGE_FILE,
+                confidence=0.8
+            ) is not None
+        except:
+            found = False
+
+        if found and not recording_active:
+            recording_active = True
+
+        if not found and recording_active:
+            recording_active = False
+            increment(auto=True)
+
+    root.after(CHECK_DELAY, check_recording)
+
 data = load_data()
 
 root = tk.Tk()
 root.title("Call Tracker")
-root.geometry("340x280")
+root.geometry("360x340")
 
 style = ttk.Style()
 style.theme_use("clam")
 
 calls = tk.IntVar(value=data["calls"])
+auto_var = tk.BooleanVar(value=False)
 
 main = ttk.Frame(root, padding=20)
 main.pack(expand=True, fill="both")
@@ -82,8 +128,15 @@ calls_entry.bind("<Return>", manual_update)
 buttons = ttk.Frame(main)
 buttons.pack(pady=8)
 
-ttk.Button(buttons, text="Add Call", command=increment).pack(side="left", padx=6)
+ttk.Button(buttons, text="Add Call", command=lambda: increment(auto=False)).pack(side="left", padx=6)
 ttk.Button(buttons, text="Remove Call", command=decrement).pack(side="left", padx=6)
+
+auto_check = ttk.Checkbutton(
+    main,
+    text="Auto increment from recording",
+    variable=auto_var
+)
+auto_check.pack(pady=8)
 
 money_label = ttk.Label(main, font=("Segoe UI", 12))
 money_label.pack(pady=6)
@@ -92,5 +145,6 @@ time_label = ttk.Label(main, font=("Segoe UI", 12))
 time_label.pack(pady=6)
 
 update_display()
+check_recording()
 
 root.mainloop()
